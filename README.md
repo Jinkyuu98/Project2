@@ -44,6 +44,8 @@ Project2/
 ├── .env                     # API KEY 관리
 └── requirements.txt         # 설치 라이브러리 목록
 
+---
+
 ## 🚀 시작하기 (Quick Start)
 
 1. **가상환경 생성 및 활성화**
