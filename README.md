@@ -43,6 +43,7 @@ Project2/
 │   └── main.py              # Streamlit 실행 파일
 ├── .env                     # API KEY 관리
 └── requirements.txt         # 설치 라이브러리 목록
+```
 
 ---
 
