@@ -28,7 +28,7 @@
 
 ### Frontend & Infrastructure
 - **UI**: Streamlit
-- **Environment**: Docker, Docker Compose
+- **Environment**: venv
 
 ---
 
