@@ -55,7 +55,7 @@ Project2/
    source venv/bin/activate  # Windows: venv\Scripts\activate
 
 2. **필수 라이브러리 설치**
-```pip install -r requirements.txt
+```pip install -r requirements.txt```
 
 3. **애플리케이션 실행**
-```streamlit run src/main.py
+```streamlit run src/main.py```
