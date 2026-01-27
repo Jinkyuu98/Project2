@@ -1,22 +1,24 @@
-# UI & Backend
-streamlit       # 웹 인터페이스 구현
-python-dotenv   # API 키 등 환경변수 관리
+# [Core & Vision]
+numpy==1.26.4
+opencv-python<4.11.0
+mediapipe>=0.10.0
+pandas
 
-# AI Orchestration & LLM
-langchain       # LLM 프레임워크
-langchain-openai # OpenAI 연동
-langgraph       # 상태 기반 에이전트 워크플로우 제어
+# [UI & Backend]
+streamlit
+python-dotenv
 
-# Vision & Image Processing
-mediapipe       # 구글 비전 분석 (피부 수치화)
-opencv-python   # 이미지 전처리 및 핸들링
-numpy           # 수치 계산
+# [AI & Orchestration]
+langchain
+langchain-openai
+langchain-community
+langgraph
 
-# Database & RAG
-chromadb        # Vector DB (RAG 구현용)
-pysqlite3       # SQLite (성분/알러지 필터링용)
-pandas          # 데이터 프레임 관리 및 전처리
+# [Database & RAG]
+chromadb
+langchain-chroma
 
-# Crawling (데이터 확보용)
-beautifulsoup4  # 정적 페이지 크롤링
-selenium        # 동적 페이지(올리브영 등) 크롤링
+# [Crawling]
+beautifulsoup4
+selenium
+webdriver-manager
