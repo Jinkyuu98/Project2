@@ -92,21 +92,30 @@ def analyzer_node(state: GraphState):
 def retriever_node(state: GraphState):
     print("--- [Node] 지식 리트리빙(RAG) 시작 ---")
     
-    # 1. 피부 타입이나 현재 수치를 바탕으로 검색어 생성
-    # 홍조가 높으면 '홍조 진정 케어', 유분이 적으면 '건성 피부 보습' 등
     red = state.get("redness", 0)
     oil = state.get("oiliness", 0)
     
-    # 간단한 쿼리 생성 로직 (LLM을 써서 쿼리를 짜도 되지만 일단은 직관적으로!)
-    search_query = ""
-    if red > 50: search_query += "홍조 민감성 피부 진정 관리법 "
-    if oil < 40: search_query += "건성 피부 수분 장벽 강화 성분"
-    else: search_query += "지성 피부 피지 조절 성분"
+    # 1. 지수님 기준(40/70)에 맞춘 지능형 쿼리 생성
+    search_queries = []
+    
+    # 홍조/민감성 판단 (지수님 기준 40 적용)
+    if red > 40:
+        search_queries.append("민감성 홍조 피부 진정 성분 판테놀 병풀")
+    
+    # 유분 점수에 따른 타입별 쿼리
+    if oil < 40:
+        search_queries.append("건성 피부 수분 장벽 강화 세라마이드")
+    elif oil > 70:
+        search_queries.append("지성 피부 피지 조절 모공 관리 성분")
+    else:
+        search_queries.append("복합성 피부 유수분 밸런스 조절법") # 복합성 쿼리 추가!
 
+    # 쿼리 합치기
+    search_query = " ".join(search_queries)
+    
     # 2. Vector DB에서 지식 추출
     knowledge = get_relevant_knowledge(search_query)
     
-    # 3. State 업데이트
     return {"skin_knowledge": knowledge}
 
 def database_node(state: GraphState):

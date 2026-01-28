@@ -64,10 +64,15 @@ def generate_skin_report(redness, oiliness):
 def generate_final_report(redness, oiliness, analysis_json, recommended_products, knowledge):
     # 1. 수치 기반 확정적 피부 타입 판정
     type_parts = []
-    if oiliness < 30: type_parts.append("건성")
-    elif oiliness > 70: type_parts.append("지성")
-    else: type_parts.append("복합성")
-    if redness > 50: type_parts.append("민감성")
+    if oiliness < 40: # 30에서 40으로 상향
+        type_parts.append("건성")
+    elif oiliness > 70:
+        type_parts.append("지성")
+    else:
+        type_parts.append("복합성")
+
+    if redness > 40: # 50에서 40으로 하향
+        type_parts.append("민감성")
     skin_type_str = " / ".join(type_parts)
     
     summary = analysis_json.get("skin_summary", "피부 분석 완료")

@@ -9,11 +9,11 @@ SYSTEM_ALLERGY_LIST = ["아밀신남알", "벤질알코올", "신나밀알코올
                        "시트로넬올","헥실신남알","리모넨","메틸 2-옥티노에이트",
                        "알파-아이소메틸아이오논","참나무이끼추출물","나무이끼추출물"]
 
-def check_product_safety(ingredients_str):
+def check_product_safety(ingredients, is_wash_off=False):
     """
     성분 문자열에서 알레르기 유발 성분을 찾고 안전 메시지 반환
     """
-    found = [a for a in SYSTEM_ALLERGY_LIST if a in ingredients_str]
+    found = [a for a in SYSTEM_ALLERGY_LIST if a in ingredients]
     
     if not found:
         return "✅ 이 제품은 식약처 지정 알레르기 주의 성분이 검출되지 않았습니다."
