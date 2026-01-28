@@ -96,49 +96,72 @@ def generate_final_report(redness, oiliness, analysis_json, recommended_products
     report += f"- **관리 우선순위:** {', '.join([f'# {p}' for p in care_priorities]) if care_priorities else '#기본케어'}\n\n"
 
     # 5. 맞춤 추천 제품
-    report += "### 🛍️ 맞춤 추천 제품 및 안전성 분석\n"
+    # interpreter.py 내 generate_final_report 함수 중 제품 추천 섹션(5번) 수정
+
+    # 5. 맞춤 추천 제품 (카테고리별 루틴 출력)
+    report += "### 🛍️ AI 추천 데일리 스킨케어 루틴\n"
     
     if recommended_products:
-        report += "| 카테고리 | 브랜드 | 제품명 | 가격 | 성분 안전성 |\n"
-        report += "| :--- | :--- | :--- | :--- | :--- |\n"
-        for p in recommended_products:
-            category = p.get("category", "스킨케어")
-            is_wash_off = "클렌징" in category
-            safety_msg = check_product_safety(p.get("ingredients", ""), is_wash_off)
-            p_url = p.get("detail_url") if p.get("detail_url") else f"https://search.shopping.naver.com/search/all?query={p['brand']}+{p['name']}"
-            report += f"| {category} | {p['brand']} | [{p['name']}]({p_url}) | {p['price']}원 | {safety_msg} |\n"
+        report += "분석된 피부 타입에 맞춘 최적의 사용 순서입니다.\n\n"
+        
+        # 카테고리 순서대로 예쁘게 출력
+        for idx, p in enumerate(recommended_products, 1):
+            category = p.get("category", "기초 케어")
+            brand = p.get("brand", "브랜드")
+            name = p.get("name", "제품명")
+            price = p.get("price", "0")
+            p_url = p.get("detail_url") if p.get("detail_url") else f"https://search.shopping.naver.com/search/all?query={brand}+{name}"
+            
+            # 알레르기/안전성 체크
+            safety_msg = check_product_safety(p.get("ingredients", ""), False)
+
+            report += f"**STEP {idx}. {category}**\n"
+            report += f"> **[{brand}] {name}**\n"
+            report += f"> - 💰 가격: {price}원 | ✨ 안전성: {safety_msg}\n"
+            report += f"> - [👉 제품 상세 정보 확인하기]({p_url})\n\n"
+
     else:
-        main_ingred = "병풀 판테놀" if redness > 50 else "히알루론산 세라마이드"
+        # DB에 제품이 없는 경우 (올리브영 자동 검색 링크 생성)
+        main_ingred = "병풀 판테놀" if redness > 40 else "히알루론산 세라마이드"
+        
         def get_oy_url(cat, ingred):
+            # 올리브영 검색 시 여러 카테고리를 한 번에 검색하도록 수정
             return f"https://www.oliveyoung.co.kr/store/search/getSearchMain.do?query={ingred}+{cat}"
 
+        # 💡 HTML 코드 업데이트
         report += f"""
 \n\n
 <div style="background-color: #fff3cd; padding: 20px; border-radius: 10px; border: 1px solid #ffeeba; margin: 10px 0;">
     <h4 style="color: #856404; margin-top: 0;">⚠️ DB 매칭 제품을 찾지 못했습니다</h4>
     <p style="color: #666; font-size: 0.95em;">분석된 <b>{skin_type_str}</b> 피부 타입에 최적화된 올리브영 추천 상품 링크를 제공합니다.</p>
+    
     <table style="width:100%; border-collapse: collapse; margin-top:10px; background-color: white; color: black;">
         <tr style="background-color: #f8f9fa;">
+            <th style="padding:10px; border:1px solid #ddd;">사용 순서</th>
             <th style="padding:10px; border:1px solid #ddd;">카테고리</th>
             <th style="padding:10px; border:1px solid #ddd;">추천 성분 가이드</th>
             <th style="padding:10px; border:1px solid #ddd;">올리브영 바로가기</th>
         </tr>
         <tr>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">Step 1</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;">💧 스킨/토너</td>
             <td style="padding:10px; border:1px solid #ddd;">결 정돈 및 진정 토너</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="{get_oy_url('토너', main_ingred)}" target="_blank">🛒 이동</a></td>
         </tr>
         <tr>
-            <td style="padding:10px; border:1px solid #ddd; text-align:center;">🧪 세럼/앰플</td>
-            <td style="padding:10px; border:1px solid #ddd;">고농축 집중 케어 앰플</td>
-            <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="{get_oy_url('앰플', main_ingred)}" target="_blank">🛒 이동</a></td>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">Step 2</td>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">🧪 에센스/세럼/앰플</td>
+            <td style="padding:10px; border:1px solid #ddd;">고농축 집중 케어 단계</td>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="{get_oy_url('에센스 세럼 앰플', main_ingred)}" target="_blank">🛒 이동</a></td>
         </tr>
         <tr>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">Step 3</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;">🧴 로션</td>
             <td style="padding:10px; border:1px solid #ddd;">유수분 밸런스 로션</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="{get_oy_url('로션', main_ingred)}" target="_blank">🛒 이동</a></td>
         </tr>
         <tr>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">Step 4</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;">🍦 크림</td>
             <td style="padding:10px; border:1px solid #ddd;">보습 장벽 강화 크림</td>
             <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="{get_oy_url('크림', main_ingred)}" target="_blank">🛒 이동</a></td>

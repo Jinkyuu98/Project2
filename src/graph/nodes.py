@@ -103,10 +103,11 @@ def retriever_node(state: GraphState):
         search_queries.append("민감성 홍조 피부 진정 성분 판테놀 병풀")
     
     # 유분 점수에 따른 타입별 쿼리
+    # nodes.py 내 retriever_node 부분
     if oil < 40:
-        search_queries.append("건성 피부 수분 장벽 강화 세라마이드")
+        search_queries.append("건성 피부 보습 에센스 세럼 추천 성분")
     elif oil > 70:
-        search_queries.append("지성 피부 피지 조절 모공 관리 성분")
+        search_queries.append("지성 피부 산뜻한 에센스 수분 세럼 관리")
     else:
         search_queries.append("복합성 피부 유수분 밸런스 조절법") # 복합성 쿼리 추가!
 

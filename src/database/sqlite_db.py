@@ -1,10 +1,11 @@
 import sqlite3
 import os
 
+# DB 경로 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DB_PATH = os.path.join(BASE_DIR, "db", "skin_products.db")
 
-def get_recommended_products(oiliness, redness, limit=3):
+def get_recommended_products(oiliness, redness):
     if not os.path.exists(DB_PATH):
         return []
 
@@ -12,44 +13,50 @@ def get_recommended_products(oiliness, redness, limit=3):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # 1. 키워드 준비 (지수님 가이드 40/70 기준에 맞춰 수정)
-    # 유분이 40 미만이면 건성, 70 이상이면 지성, 그 사이는 복합성(둘 다 검색 허용)
-    if oiliness > 70:
-        skin_type = "지성"
-    elif oiliness < 40:
-        skin_type = "건성"
-    else:
-        skin_type = "복합성" # 또는 "%" (와일드카드)를 써서 전체 검색 허용 가능
-
-    # 홍조 수치 기준도 40으로 하향 조정
-    is_sensitive = redness > 40 
+    skin_type = "지성" if oiliness > 70 else "건성" if oiliness < 40 else "복합성"
+    is_sensitive = redness > 40
     
-    # 2. 쿼리 최적화
-    # 민감성(is_sensitive)일 경우 '진정' 키워드를 강제로 포함하도록 OR 조건을 강화합니다.
-    condition_sql = ""
-    if is_sensitive:
-        condition_sql = "OR ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%'"
-
-    query = f"""
-        SELECT * FROM products 
-        WHERE (product_spec LIKE ? {condition_sql})
-        ORDER BY 
-            (CASE WHEN product_spec LIKE ? THEN 0 ELSE 1 END), 
-            (CASE WHEN ingredients LIKE '%진정%' THEN 0 ELSE 1 END),
-            RANDOM() 
-        LIMIT ?
-    """
+    # 💡 1. 명확한 카테고리 순서 정의
+    # (카테고리명은 DB에 저장된 실제 카테고리와 유사하게 맞추되, 중복 방지를 위해 세분화)
+    routine_config = [
+        {"step": "스킨/토너", "search": "토너"},
+        {"step": "에센스/세럼/앰플", "search": "세럼"}, # 에센스, 앰플 포함
+        {"step": "로션", "search": "로션"},
+        {"step": "크림", "search": "크림"}
+    ]
     
-    cursor.execute(query, (f"%{skin_type}%", f"%{skin_type}%", limit))
-    rows = cursor.fetchall()
-    
-    # ... (이후 변환 로직 동일)
     products = []
-    for row in rows:
-        p = dict(row)
-        p['detail_url'] = p.get('detail_url', p.get('link', ''))
-        p['is_wash_off'] = "클렌징" in p.get('category', '')
-        products.append(p)
+
+    for item in routine_config:
+        # 💡 중복 방지 로직: 이전 단계에서 뽑힌 제품은 제외 (NOT IN 사용 가능하나 여기선 ID 관리)
+        exclude_ids = [p['id'] for p in products if 'id' in p]
+        exclude_query = f"AND id NOT IN ({','.join(map(str, exclude_ids))})" if exclude_ids else ""
+
+        # 💡 쿼리: 해당 카테고리만 정확히 타겟팅
+        query = f"""
+            SELECT * FROM products 
+            WHERE category LIKE ? 
+            {exclude_query}
+            AND (product_spec LIKE ? OR ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%')
+            ORDER BY 
+                (CASE WHEN ? = 1 AND (ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%') THEN 0 ELSE 1 END) ASC,
+                (CASE WHEN product_spec LIKE ? THEN 0 ELSE 1 END) ASC,
+                RANDOM() 
+            LIMIT 1
+        """
+        
+        # search 키워드에 따라 검색 (예: '로션' 검색 시 '크림/로션'이 걸릴 수 있으므로 
+        # 나중에 정렬이나 필터링으로 보정)
+        cursor.execute(query, (f"%{item['search']}%", f"%{skin_type}%", 1 if is_sensitive else 0, f"%{skin_type}%"))
+        row = cursor.fetchone()
+        
+        if row:
+            p = dict(row)
+            # 💡 화면에 표시될 카테고리명을 우리가 정한 Step 이름으로 고정!
+            p['display_category'] = item['step']
+            p['detail_url'] = p.get('detail_url', p.get('link', ''))
+            p['is_wash_off'] = False
+            products.append(p)
 
     conn.close()
     return products
