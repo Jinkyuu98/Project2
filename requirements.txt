@@ -17,6 +17,8 @@ langgraph
 # [Database & RAG]
 chromadb
 langchain-chroma
+trafilatura
+sentence-transformers
 
 # [Crawling]
 beautifulsoup4

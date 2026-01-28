@@ -1,5 +1,14 @@
+import sys
+import os
+from dotenv import load_dotenv
+
+load_dotenv() # .env 파일의 환경 변수를 불러옵니다.
+
+# 현재 파일(main.py)의 위치를 기준으로 프로젝트 루트(Project2)를 경로에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
-import time
+from src.graph.workflow import build_workflow
 
 # 1. 페이지 설정
 st.set_page_config(page_title="SkinCare Agent", page_icon="🩺", layout="centered")
@@ -12,8 +21,8 @@ st.markdown("---")
 with st.sidebar:
     st.header("👤 유저 프로필")
     user_allergy = st.multiselect(
-        "알러지 성분을 선택하세요",
-        ["페녹시에탄올", "파라벤", "향료", "에탄올", "미네랄 오일"]
+        "본인이 예민한 성분을 선택하세요",
+        ["페녹시에탄올", "파라벤", "향료", "에탄올", "미네랄 오일", "리모넨", "리날룰"]
     )
     skin_concern = st.selectbox(
         "주요 피부 고민",
@@ -22,54 +31,51 @@ with st.sidebar:
 
 # 4. 메인 화면 - 이미지 업로드
 st.subheader("📸 피부 사진 분석")
-uploaded_file = st.file_uploader("피부 사진을 찍거나 업로드하세요", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("피부 사진을 업로드하세요", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # 사진 미리보기
     st.image(uploaded_file, caption="업로드된 사진", use_container_width=True)
-    
     if st.button("에이전트에게 분석 요청하기"):
         with st.status("에이전트가 분석 중입니다...", expanded=True) as status:
-            # Step 1: Vision 분석 (Mediapipe 노드 시뮬레이션)
-            st.write("🔍 Mediapipe로 피부 영역 분석 중...")
-            time.sleep(1)
             
-            # Step 2: LangGraph 쿼리 생성
-            st.write("🧠 분석 수치를 기반으로 맞춤 쿼리 생성 중...")
-            time.sleep(1)
+            # 1. 업로드된 이미지 파일을 바이트 데이터로 추출
+            # (이 데이터가 vision_node의 SkinAnalyzer로 전달됨)
+            image_bytes = uploaded_file.getvalue()
             
-            # Step 3: RAG 검색 및 SQL 필터링
-            st.write("📚 올리브영 데이터베이스에서 최적의 제품 검색 중...")
-            time.sleep(1)
+            # 2. LangGraph 워크플로우 빌드
+            st.write("🧠 AI 에이전트 워크플로우 가동 중...")
+            app = build_workflow()
             
-            # Step 4: 알러지 체크 (Safety Guardrail)
-            st.write(f"🛡️ 선택하신 알러지({', '.join(user_allergy)}) 성분 필터링 중...")
-            time.sleep(1)
+            # 3. 초기 상태(initial_state) 설정
+            # 이제 고정 수치 대신 'image_data'를 직접 전달함
+            initial_state = {
+                "image_data": image_bytes,  # 실제 이미지 데이터 투입
+                "user_allergy": user_allergy,
+                "analysis_result": {},
+                "skin_knowledge": "",
+                "recommended_products": [],
+                "final_report": ""
+            }
+            
+            # 4. 그래프 실행 (비전 분석 -> LLM 진단 -> 제품 매칭)
+            # 이제 vision_node가 image_data를 분석해 redness, oiliness를 업데이트함
+            final_state = app.invoke(initial_state)
             
             status.update(label="분석 완료!", state="complete", expanded=False)
 
+        # 5. 최종 결과 출력 (실제 분석된 수치와 리포트 표시)
         st.success("✅ 분석이 완료되었습니다!")
-
-        # 5. 결과 리포트 출력 (가상의 결과)
         st.divider()
+        
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(label="유분 수치", value="75%", delta="지성")
+            # final_state에 저장된 실제 유분 수치 출력
+            st.metric(label="유분 수치", value=f"{final_state.get('oiliness', 0)}%")
         with col2:
-            st.metric(label="홍조 수치", value="15%", delta="-5% (정상)", delta_color="normal")
-
-        st.subheader("✨ 추천 제품 리포트")
-        
-        # 가상의 추천 제품 리스트 (RAG 결과물 예시)
-        products = [
-            {"name": "토리든 다이브인 수분크림", "reason": "지성 피부에 적합한 가벼운 제형", "link": "https://www.oliveyoung.co.kr/"},
-            {"name": "닥터지 레드 블레미쉬 크림", "reason": "민감성 및 여드름성 피부 진정 효과", "link": "https://www.oliveyoung.co.kr/"}
-        ]
-
-        for p in products:
-            with st.expander(f"🛒 {p['name']}"):
-                st.write(f"**추천 이유:** {p['reason']}")
-                st.link_button("구매 페이지로 이동", p['link'])
+            # final_state에 저장된 실제 홍조 수치 출력
+            st.metric(label="홍조 수치", value=f"{final_state.get('redness', 0)}%")
+            
+        st.markdown(final_state["final_report"], unsafe_allow_html=True)
 
 else:
     st.info("왼쪽 사이드바에서 정보를 입력하고 피부 사진을 업로드해주세요.")
