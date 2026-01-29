@@ -56,14 +56,13 @@ Project2/
 
 ## 🚀 시작하기 (Quick Start)
 
-1. **가상환경 생성 및 활성화**
+1. **가상환경(Conda) 활성화**
    ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # Linux/Mac:
-   source venv/bin/activate
+   conda activate skin_env
    ```
+   > [!NOTE]
+   > 만약 `skin_env`가 없다면 아래 명령어로 생성할 수 있습니다.
+   > `conda create -n skin_env python=3.10` (이후 필수 라이브러리 설치)
 
 2. **필수 라이브러리 설치**
    ```bash

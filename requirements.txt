@@ -1,38 +1,37 @@
 # SkinCare-Agent Core Dependencies
 
 # AI & LLM Orchestration
-langchain==1.2.7
-langchain-core==1.2.7
-langchain-openai==1.1.7
-langchain-community==0.4.1
-langchain-text-splitters==1.1.0
-langgraph==1.0.7
-openai==2.15.0
+langchain>=1.2.0
+langchain-core>=1.2.0
+langchain-openai>=1.1.0
+langchain-community>=0.4.0
+langchain-text-splitters
+langgraph
+openai
 
 # Computer Vision & Image Processing
-mediapipe==0.10.9
-opencv-python==4.10.0.84
-numpy==1.26.4
-Pillow==12.1.0
+mediapipe
+opencv-python
+numpy
+Pillow
 
 # Data Storage & Search (RAG)
-chromadb==1.4.1
-langchain-chroma==1.1.0
-SQLAlchemy==2.0.46
-sqlite3-binary  # standard library sqlite3 is used, but SQLAlchemy depends on it
-sentence-transformers==5.2.2
+chromadb
+langchain-chroma
+SQLAlchemy
+sentence-transformers
 
 # Web UI Framework
-streamlit==1.53.1
+streamlit
 
 # Data Ingestion & Utilities
-beautifulsoup4==4.14.3
-trafilatura==2.0.0
-requests==2.32.5
-python-dotenv==1.2.1
-pandas==2.3.3
-scikit-learn==1.7.2
+beautifulsoup4
+trafilatura
+requests
+python-dotenv
+pandas
+scikit-learn
 
 # Performance & Async
-aiohttp==3.13.3
-tqdm==4.67.1
+aiohttp
+tqdm

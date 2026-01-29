@@ -61,7 +61,7 @@ def generate_skin_report(redness, oiliness):
     chain = prompt_template | llm | parser
     return chain.invoke({"redness": redness, "oiliness": oiliness})
 
-def generate_final_report(redness, oiliness, analysis_json, recommended_products, knowledge):
+def generate_final_report(redness, oiliness, analysis_json, recommended_products, knowledge, user_allergy=None):
     # 1. 수치 기반 확정적 피부 타입 판정
     type_parts = []
     if oiliness < 40: # 30에서 40으로 상향
@@ -96,8 +96,6 @@ def generate_final_report(redness, oiliness, analysis_json, recommended_products
     report += f"- **관리 우선순위:** {', '.join([f'# {p}' for p in care_priorities]) if care_priorities else '#기본케어'}\n\n"
 
     # 5. 맞춤 추천 제품
-    # interpreter.py 내 generate_final_report 함수 중 제품 추천 섹션(5번) 수정
-
     # 5. 맞춤 추천 제품 (카테고리별 루틴 출력)
     report += "### 🛍️ AI 추천 데일리 스킨케어 루틴\n"
     
@@ -111,7 +109,8 @@ def generate_final_report(redness, oiliness, analysis_json, recommended_products
             name = p.get("name", "제품명")
             price = p.get("price", "0")
             p_url = p.get("detail_url") if p.get("detail_url") else f"https://search.shopping.naver.com/search/all?query={brand}+{name}"
-            safety_msg = check_product_safety(p.get("ingredients", ""), False)
+            # 💡 [수정] 유저 알레르기 정보를 Safety Check에 전달!
+            safety_msg = check_product_safety(p.get("ingredients", ""), False, user_allergy)
             
             report += f"""
 <div style="border-left: 5px solid #4A90E2; background-color: #f9f9f9; padding: 15px; margin-bottom: 20px; border-radius: 0 10px 10px 0;">
@@ -177,7 +176,6 @@ def generate_final_report(redness, oiliness, analysis_json, recommended_products
 """
     report += "\n---\n※ 본 결과는 AI 시각 분석 모델에 기반한 참고용 리포트입니다."
     
-    # 💡 [핵심 해결 1] 리포트 문자열을 반드시 반환해야 함!
     return report
 
 def summarize_knowledge(knowledge):
@@ -191,17 +189,18 @@ def summarize_knowledge(knowledge):
 def interpreter_node(state):
     red = state.get("redness", 0)
     oil = state.get("oiliness", 0)
+    user_allergy = state.get("user_allergy", [])
     products = state.get("recommended_products", [])
     raw_knowledge = state.get("skin_knowledge", "")
 
     # 1. AI 진단 JSON 생성
     analysis_json = generate_skin_report(red, oil)
     
-    # 💡 [핵심 해결 2] 요약 함수를 실행해서 결과를 받아야 함!
+    # 2. 요약 함수 실행
     summarized = summarize_knowledge(raw_knowledge)
     
-    # 💡 [핵심 해결 3] 5번째 인자로 요약된 지식을 넘겨줌!
-    final_report = generate_final_report(red, oil, analysis_json, products, summarized)
+    # 3. 최종 리포트 생성 (user_allergy 전달!)
+    final_report = generate_final_report(red, oil, analysis_json, products, summarized, user_allergy)
 
     return {
         "analysis_result": analysis_json, 

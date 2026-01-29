@@ -53,21 +53,24 @@ llm_vision = None
 
 # nodes.py 내 수정
 def intent_analysis_node(state: GraphState):
+    # 유저의 의도(성분 제외 요청, 홍조/유분 관심사 등)를 GPT-4o로 분석
     print("--- [Node] 유저 의도 분석 시작 ---")
     user_msg = state.get("user_message", "")
-    print(f"💬 유저 입력 메시지: {user_msg}") # 전달된 메시지 확인용
+    print(f"💬 유저 입력 메시지 (Raw): '{user_msg}'") 
+    print(f"🧩 전체 State Keys: {list(state.keys())}")
 
     prompt = f"""
-    당신은 화장품 성분 분석 전문가입니다. 유저의 메시지에서 '피해야 할 성분명'을 리스트로 추출하세요.
+    당신은 화장품 성분 분석 전문가입니다. 유저의 메시지에서 '제외 요청하거나 피해야 할 성분명'을 리스트로 추출하세요.
     
     [규칙]
-    1. '리모넨 성분'이라고 하면 '리모넨'만 추출합니다.
-    2. '알러지', '제외', '빼줘', '안 맞아'와 연결된 성분은 무조건 리스트에 넣습니다.
-    3. 결과는 반드시 아래 JSON 형식으로만 응답하세요.
+    1. '리모넨 성분' 또는 '리모넨은 빼줘'라고 하면 '리모넨'만 추출합니다.
+    2. '알러지', '제외', '빼줘', '안 맞아', '넣지 마'와 연결된 성분은 무조건 리스트에 넣습니다.
+    3. 구체적인 성분명뿐만 아니라 '향료', '방부제' 등 유저가 기피하는 키워드도 포함하세요.
+    4. 결과는 반드시 아래 JSON 형식으로만 응답하세요. (성분이 없으면 빈 리스트)
     
     메시지: "{user_msg}"
     
-    응답 예시: {{"allergy_ingredients": ["리모넨"], "user_concerns": "홍조"}}
+    응답 예시: {{"allergy_ingredients": ["리모넨", "시트랄"], "user_concerns": "홍조, 유분"}}
     """
     
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -88,6 +91,7 @@ def intent_analysis_node(state: GraphState):
 
     # 💡 터미널 로그를 통해 추출된 결과를 확실히 확인
     print(f"🚫 최종 추출된 차단 성분: {extracted.get('allergy_ingredients', [])}")
+    print(f"🎯 State에 저장할 값: {extracted.get('allergy_ingredients', [])}")
     
     return {
         "user_allergy": extracted.get('allergy_ingredients', []),
@@ -261,6 +265,8 @@ def database_node(state: GraphState):
     oil = state.get("oiliness", 0)
     allergy = state.get("user_allergy", [])
     
+    print(f"🔍 Database Node 진입 - 현재 State user_allergy: {allergy}")
+    
     # 아까 수정한 sqlite_db의 함수 호출
     products = get_recommended_products(oil, red, allergy)
     return {"recommended_products": products}
@@ -297,9 +303,10 @@ def interpreter_node(state: GraphState):
     # 3. 기존 로직 그대로 실행하되, 제품 리스트만 cleaned_products로 교체
     analysis_json = generate_skin_report(red, oil)
     summarized_knowledge = summarize_knowledge(knowledge)
+    user_allergy = state.get("user_allergy", [])  # 💡 [추가] 유저 알러지 추출
 
-    # 지수님 함수 호출 (청소된 제품 리스트를 전달!)
-    final_report = generate_final_report(red, oil, analysis_json, cleaned_products, summarized_knowledge)
+    # 지수님 함수 호출 (청소된 제품 리스트 및 유저 알러지 전달!)
+    final_report = generate_final_report(red, oil, analysis_json, cleaned_products, summarized_knowledge, user_allergy)
 
     return {
         "analysis_result": analysis_json, 

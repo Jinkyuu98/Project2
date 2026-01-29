@@ -29,9 +29,11 @@ def get_recommended_products(oiliness, redness, allergy_ingredients=None):
     params_base = []
     if allergy_ingredients:
         for ing in allergy_ingredients:
-            clean_ing = ing.replace("성분", "").strip()
+            clean_ing = ing.strip().replace(" ", "") # 💡 공백 제거 후 비교
             if not clean_ing: continue
-            # DB 데이터와 검색어 모두 공백/줄바꿈 제거 후 비교
+            
+            # 💡 [핵심 변경] REPLACE 함수를 써서 DB 내의 공백을 다 지우고 비교해
+            # 이렇게 하면 '리 모 넨', '리모넨 ', ',리모넨' 전부 다 걸려.
             allergy_filter += " AND REPLACE(REPLACE(ingredients, ' ', ''), '\n', '') NOT LIKE ?"
             params_base.append(f"%{clean_ing}%")
 

@@ -31,7 +31,8 @@ uploaded_file = st.file_uploader("먼저 피부 사진을 업로드하세요", t
 # 5. 기존 채팅 내용 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        # 💡 HTML 렌더링 허용 (unsafe_allow_html=True 추가)
+        st.markdown(message["content"], unsafe_allow_html=True)
 
 # 6. 채팅 입력창 (분석 실행의 트리거)
 if prompt := st.chat_input("예: 리모넨은 빼고 홍조 위주로 분석해줘!"):
@@ -52,14 +53,15 @@ if prompt := st.chat_input("예: 리모넨은 빼고 홍조 위주로 분석해�
                 
                 # 초기 상태 설정 (채팅 메시지 포함)
                 initial_state = {
-                    "user_message": prompt,  # 💡 채팅 내용 전달
+                    "user_message": str(prompt),  # 💡 확실하게 문자열로 변환
                     "image_data": image_bytes,
-                    "user_allergy": [],      # intent_node에서 채워질 예정
+                    "user_allergy": [],      
                     "analysis_result": {},
                     "skin_knowledge": "",
                     "recommended_products": [],
                     "final_report": ""
                 }
+                print(f"DEBUG: initial_state['user_message'] = '{initial_state['user_message']}'")
                 
                 # 그래프 실행
                 final_state = app.invoke(initial_state)
