@@ -27,33 +27,39 @@ def get_recommended_products(oiliness, redness, allergy_ingredients=None):
     
     products = []
     
-    # 알레르기 성분 처리
     allergy_filter = ""
     params_base = []
+    
     if allergy_ingredients:
         for ing in allergy_ingredients:
-            # 💡 [보안] 공백 없이 매칭되도록 더 꼼꼼하게 처리
-            allergy_filter += " AND ingredients NOT LIKE ?"
-            params_base.append(f"%{ing.strip()}%")
+            clean_ing = ing.strip()
+            if not clean_ing: continue
+            
+            # 💡 [핵심 변경] REPLACE 함수를 써서 DB 내의 공백을 다 지우고 비교해
+            # 이렇게 하면 '리 모 넨', '리모넨 ', ',리모넨' 전부 다 걸려.
+            allergy_filter += " AND REPLACE(REPLACE(ingredients, ' ', ''), '\n', '') NOT LIKE ?"
+            params_base.append(f"%{clean_ing}%")
 
+    products = []
     for item in routine_config:
-        # 💡 [수정 2] 핵심 쿼리: 정확한 카테고리(=) + 최소 가격 하한선(>=)
+        # 💡 STEP2(에센스/세럼/앰플) 등에서 필터가 확실히 먹히도록 쿼리 재구성
         query = f"""
             SELECT * FROM products 
             WHERE category = ? 
-            AND price >= ?
-            {allergy_filter}
+            AND price >= ? 
+            {allergy_filter} -- 💡 여기서 리모넨이 들어간 제품은 원천 차단됨
             AND (product_spec LIKE ? OR ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%')
             ORDER BY 
                 (CASE WHEN ? = 1 AND (ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%') THEN 0 ELSE 1 END) ASC,
                 (CASE WHEN product_spec LIKE ? THEN 0 ELSE 1 END) ASC,
-                price ASC -- 💡 이미 int형이므로 바로 정렬
+                price ASC 
             LIMIT 1
         """
         
-        # 💡 파라미터 순서: 카테고리, 최소가격, 알레르기성분들, 피부타입, 민감여부, 피부타입
+        # 파라미터 맵핑 (순서 주의!)
         current_params = [item['db_cat'], item['min_price']] + params_base + [f"%{skin_type}%", 1 if is_sensitive else 0, f"%{skin_type}%"]
         
+        print(f"🔍 {item['step']} 검색 중... (제외 성분: {allergy_ingredients})")
         cursor.execute(query, current_params)
         row = cursor.fetchone()
         
