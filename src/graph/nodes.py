@@ -51,6 +51,49 @@ def call_gpt4o_vision(image_base64, prompt):
 analyzer = SkinAnalyzer()
 llm_vision = None 
 
+# nodes.py 내 수정
+def intent_analysis_node(state: GraphState):
+    print("--- [Node] 유저 의도 분석 시작 ---")
+    user_msg = state.get("user_message", "")
+    print(f"💬 유저 입력 메시지: {user_msg}") # 전달된 메시지 확인용
+
+    prompt = f"""
+    당신은 화장품 성분 분석 전문가입니다. 유저의 메시지에서 '피해야 할 성분명'을 리스트로 추출하세요.
+    
+    [규칙]
+    1. '리모넨 성분'이라고 하면 '리모넨'만 추출합니다.
+    2. '알러지', '제외', '빼줘', '안 맞아'와 연결된 성분은 무조건 리스트에 넣습니다.
+    3. 결과는 반드시 아래 JSON 형식으로만 응답하세요.
+    
+    메시지: "{user_msg}"
+    
+    응답 예시: {{"allergy_ingredients": ["리모넨"], "user_concerns": "홍조"}}
+    """
+    
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    response = llm.invoke(prompt)
+    
+    try:
+        # JSON만 깔끔하게 추출하기 위해 정규식 사용
+        import re
+        content = response.content.strip()
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if json_match:
+            extracted = json.loads(json_match.group())
+        else:
+            extracted = {"allergy_ingredients": [], "user_concerns": ""}
+    except Exception as e:
+        print(f"⚠️ JSON 파싱 에러: {e}")
+        extracted = {"allergy_ingredients": [], "user_concerns": ""}
+
+    # 💡 터미널 로그를 통해 추출된 결과를 확실히 확인
+    print(f"🚫 최종 추출된 차단 성분: {extracted.get('allergy_ingredients', [])}")
+    
+    return {
+        "user_allergy": extracted.get('allergy_ingredients', []),
+        "user_concerns": extracted.get('user_concerns', "")
+    }
+
 def get_llm_vision():
     """필요할 때만 LLM을 부르는 안전한 방식"""
     global llm_vision
@@ -212,17 +255,15 @@ def retriever_node(state: GraphState):
     return {"skin_knowledge": knowledge}
 
 def database_node(state: GraphState):
-    print("--- [Node] 가성비 및 알레르기 필터링 DB 검색 ---")
-    
-    oil = state.get("oiliness", 0)
+    # 제품 DB 검색만 수행
+    print("--- [Node] 가성비 및 알러지 필터링 제품 검색 ---")
     red = state.get("redness", 0)
-    # 유저 프로필에서 알레르기 성분 가져오기 (리스트 형태라고 가정)
-    user_allergies = state.get("user_profile", {}).get("allergies", [])
+    oil = state.get("oiliness", 0)
+    allergy = state.get("user_allergy", [])
     
-    # 수정된 DB 함수 호출
-    recommended_products = get_recommended_products(oil, red, user_allergies)
-    
-    return {"recommended_products": recommended_products}
+    # 아까 수정한 sqlite_db의 함수 호출
+    products = get_recommended_products(oil, red, allergy)
+    return {"recommended_products": products}
 
 def interpreter_node(state: GraphState):
     print("--- [Node] 지수님 로직 가동: 분석 및 리포트 생성 ---")

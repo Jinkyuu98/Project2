@@ -25,30 +25,30 @@ def get_recommended_products(oiliness, redness, allergy_ingredients=None):
         {"step": "크림", "db_cat": "크림", "min_price": 10000}
     ]
     
-    products = []
-    
     allergy_filter = ""
     params_base = []
-    
     if allergy_ingredients:
         for ing in allergy_ingredients:
-            clean_ing = ing.strip()
+            clean_ing = ing.replace("성분", "").strip()
             if not clean_ing: continue
-            
-            # 💡 [핵심 변경] REPLACE 함수를 써서 DB 내의 공백을 다 지우고 비교해
-            # 이렇게 하면 '리 모 넨', '리모넨 ', ',리모넨' 전부 다 걸려.
+            # DB 데이터와 검색어 모두 공백/줄바꿈 제거 후 비교
             allergy_filter += " AND REPLACE(REPLACE(ingredients, ' ', ''), '\n', '') NOT LIKE ?"
             params_base.append(f"%{clean_ing}%")
 
     products = []
     for item in routine_config:
-        # 💡 STEP2(에센스/세럼/앰플) 등에서 필터가 확실히 먹히도록 쿼리 재구성
+        # 💡 [핵심 수정] 알레르기 필터 뒤의 OR 조건들을 괄호()로 묶어야 함!
+        # 그래야 "알레르기 성분은 없어야 한다"는 조건이 무조건 최우선으로 작동해.
         query = f"""
             SELECT * FROM products 
             WHERE category = ? 
             AND price >= ? 
-            {allergy_filter} -- 💡 여기서 리모넨이 들어간 제품은 원천 차단됨
-            AND (product_spec LIKE ? OR ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%')
+            {allergy_filter} 
+            AND (
+                product_spec LIKE ? 
+                OR ingredients LIKE '%진정%' 
+                OR ingredients LIKE '%병풀%'
+            )
             ORDER BY 
                 (CASE WHEN ? = 1 AND (ingredients LIKE '%진정%' OR ingredients LIKE '%병풀%') THEN 0 ELSE 1 END) ASC,
                 (CASE WHEN product_spec LIKE ? THEN 0 ELSE 1 END) ASC,
@@ -57,7 +57,14 @@ def get_recommended_products(oiliness, redness, allergy_ingredients=None):
         """
         
         # 파라미터 맵핑 (순서 주의!)
-        current_params = [item['db_cat'], item['min_price']] + params_base + [f"%{skin_type}%", 1 if is_sensitive else 0, f"%{skin_type}%"]
+        current_params = [
+            item['db_cat'], 
+            item['min_price']
+        ] + params_base + [
+            f"%{skin_type}%", 
+            1 if is_sensitive else 0, 
+            f"%{skin_type}%"
+        ]
         
         print(f"🔍 {item['step']} 검색 중... (제외 성분: {allergy_ingredients})")
         cursor.execute(query, current_params)
