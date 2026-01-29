@@ -226,15 +226,39 @@ def database_node(state: GraphState):
 
 def interpreter_node(state: GraphState):
     print("--- [Node] 지수님 로직 가동: 분석 및 리포트 생성 ---")
+    
     red = state.get("redness", 0)
     oil = state.get("oiliness", 0)
     products = state.get("recommended_products", [])
     knowledge = state.get("skin_knowledge", "")
+    
+    # 1. 브랜드명 제거를 위한 클리닝 함수 정의
+    def get_clean_name(brand, full_name):
+        if not brand or brand == "Unknown":
+            return full_name
+        # 브랜드명 글자 사이에 공백이 있을 수 있음을 고려한 패턴 (브\s*리\s*오\s*쉬\s*번)
+        brand_pattern = r"\s*".join(map(re.escape, brand))
+        # 패턴 제거 및 앞뒤 찌꺼기(특수문자 등) 정리
+        clean_name = re.sub(brand_pattern, "", full_name, flags=re.IGNORECASE).strip()
+        clean_name = re.sub(r"^[\[\(\-\s\.]+", "", clean_name)
+        return clean_name if clean_name else full_name
+
+    # 2. 지수님 리포트 함수에 넣기 전에 제품명만 클리닝한 새로운 리스트 생성
+    # 원본 products 데이터는 유지하면서 display용 이름만 바꿔주는 거야
+    cleaned_products = []
+    for p in products:
+        new_p = p.copy()  # 원본 복사
+        brand = p.get('brand', '')
+        raw_name = p.get('name', '')
+        new_p['name'] = get_clean_name(brand, raw_name)  # 이름만 클리닝된 버전으로 교체
+        cleaned_products.append(new_p)
+
+    # 3. 기존 로직 그대로 실행하되, 제품 리스트만 cleaned_products로 교체
     analysis_json = generate_skin_report(red, oil)
     summarized_knowledge = summarize_knowledge(knowledge)
 
-    # 지수님이 만든 최종 리포트 생성 함수 호출
-    final_report = generate_final_report(red, oil, analysis_json, products, summarized_knowledge)
+    # 지수님 함수 호출 (청소된 제품 리스트를 전달!)
+    final_report = generate_final_report(red, oil, analysis_json, cleaned_products, summarized_knowledge)
 
     return {
         "analysis_result": analysis_json, 
