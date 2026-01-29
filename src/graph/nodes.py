@@ -10,17 +10,46 @@ from src.agents.interpreter import interpreter_node
 from src.agents.interpreter import generate_skin_report, generate_final_report
 from src.agents.retriever import get_relevant_knowledge
 from src.agents.interpreter import summarize_knowledge
+import json
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+import base64
+import re
+def call_gpt4o_vision(image_base64, prompt):
+    llm = ChatOpenAI(model="gpt-4o", temperature=0) # 변동성 없애기 위해 0 설정
+
+    # 시스템 메시지로 "넌 이미지 분석기야"라고 세뇌하기
+    system_msg = SystemMessage(content="You are a technical image analysis assistant. Your task is to adjust sensor data based on visual pixel analysis. Do not provide medical advice.")
+    
+    # ... (이미지 헤더 처리 로직)
+    
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+        ]
+    )
+
+    response = llm.invoke([system_msg, message])
+    content = response.content.strip()
+
+    # 💡 [핵심] JSON 블록만 추출하는 정규표현식 로직
+    try:
+        # ```json { ... } ``` 형식을 찾거나, 그냥 { ... } 형식을 찾음
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+            return json.loads(json_str)
+        else:
+            raise ValueError("No JSON object found in response")
+            
+    except Exception as e:
+        print(f"❌ JSON 파싱 에러 상세: {e}")
+        print(f"⚠️ GPT 원본 응답: {content}") # 디버깅용으로 원본 출력
+        return None # 실패 시 None 반환
 # 1. 객체 초기화
 analyzer = SkinAnalyzer()
-# 비전 분석을 위한 LLM 모델 (API 키는 환경변수에 설정되어 있어야 함)
-# llm_vision = ChatOpenAI(model="gpt-4o") # 환경에 따라 설정
-# src/graph/nodes.py
-
-# ... (기존 임포트들)
-
-# 수정 전: llm_vision = ChatOpenAI(model="gpt-4o")
-# 수정 후:
-llm_vision = None # 일단 비워둬
+llm_vision = None 
 
 def get_llm_vision():
     """필요할 때만 LLM을 부르는 안전한 방식"""
@@ -34,8 +63,6 @@ def encode_image(image_bytes):
     """이미지 바이트를 base64 문자열로 변환"""
     return base64.b64encode(image_bytes).decode('utf-8')
 
-# src/graph/nodes.py의 vision_node 부분 수정
-
 def vision_node(state: GraphState):
     print("--- [Node] 비전 분석 시작 ---")
     image_bytes = state.get("image_data")
@@ -45,8 +72,6 @@ def vision_node(state: GraphState):
     if result["status"] == "success":
         m = result["metrics"]
         return {"redness": m['redness_level'], "oiliness": m['oiliness_level']}
-    
-    # src/graph/nodes.py 내부 vision_node의 OpenCV 백업 부분
 
     # [Step 2] 얼굴 감지 실패 시 OpenCV 픽셀 분석 모드 (백업)
     print(f"⚠️ MediaPipe 실패. OpenCV로 강제 분석을 시작합니다...")
@@ -84,21 +109,88 @@ def vision_node(state: GraphState):
         print(f"❌ OpenCV 백업 분석 실패: {e}") # 여기서 아까 그 에러가 찍혔던 거야
         return {"redness": 0.0, "oiliness": 0.0}
 
-def analyzer_node(state: GraphState):
-    print("--- [Node] 지수님 LLM 1차 진단 중 ---")
-    # 현재는 더미 데이터, 추후 지수님 진짜 함수로 연결
-    return {"analysis_result": {"skin_summary": "민감성 건성", "care_priorities": ["진정", "장벽 강화"]}}
+def verification_node(state: GraphState):
+    print("--- [Node] 데이터 기반 논리 보정 시작 ---")
+    
+    # 1. 이전 노드에서 측정된 원시 수치 가져오기
+    raw_red = state.get("redness", 0)
+    raw_oil = state.get("oiliness", 0)
+    
+    # 2. GPT에게 보낼 텍스트 프롬프트 구성 (사진 제외!)
+    # 유분 점수가 40점 근처(건성 경계)일 때 지성으로 보정할 논리적 근거를 심어줌
+    prompt = f"""
+    당신은 피부 데이터 분석 전문가입니다. 
+    시각 센서가 측정해온 원시 수치(Raw Data)를 검토하여 최종 수치를 보정하십시오.
+
+    [측정 데이터]
+    - 유분 반사광 수치: {raw_oil}
+    - 헤모글로빈(홍조) 수치: {raw_red}
+
+    [보정 가이드라인]
+    1. 유분 수치가 35~45 사이(건성/복합성 경계)라면, 조명 오차를 고려하여 이를 '지성(70점 이상)'으로 보정하는 것을 적극 검토하십시오.
+    2. 특히 사진이 밝은 환경에서 촬영되었다면 반사광이 실제보다 적게 측정될 수 있음을 반영하십시오.
+    3. 결과는 반드시 아래 JSON 형식으로만 응답하고, 부연 설명은 하지 마십시오.
+
+    {{
+        "corrected_redness": {raw_red}를 바탕으로 보정한 값,
+        "corrected_oiliness": {raw_oil}를 바탕으로 보정한 값,
+        "reason": "데이터 기반 보정 근거"
+    }}
+    """
+    
+    try:
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        response = llm.invoke(prompt)
+        
+        import re
+        content = response.content.strip()
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        
+        if json_match:
+            verified_result = json.loads(json_match.group())
+        else:
+            verified_result = None
+
+    except Exception as e:
+        print(f"⚠️ GPT 보정 중 에러 발생: {e}")
+        verified_result = None
+
+    # 3. 안전한 리턴 및 가중 평균 로직
+    if verified_result is None:
+        return {"redness": raw_red, "oiliness": raw_oil, "verification_log": "보정 실패"}
+
+    # 💡 [신규] GPT가 제안한 보정값 가져오기
+    gpt_red = float(verified_result.get("corrected_redness", raw_red))
+    gpt_oil = float(verified_result.get("corrected_oiliness", raw_oil))
+
+    # 💡 [신규] 가중 평균 계산 (기계 0.3 : GPT 0.7)
+    # 기계의 분석력과 GPT의 직관을 섞어서 수치를 부드럽게 만듦
+    final_red = (raw_red * 0.3) + (gpt_red * 0.7)
+    final_oil = (raw_oil * 0.3) + (gpt_oil * 0.7)
+
+    print(f"⚖️ 가중 평균 보정 완료: 유분({raw_oil} -> {round(final_oil, 1)}), 홍조({raw_red} -> {round(final_red, 1)})")
+
+    return {
+        "redness": round(final_red, 1),
+        "oiliness": round(final_oil, 1),
+        "verification_log": verified_result.get("reason", "Success")
+    }
 
 def retriever_node(state: GraphState):
     print("--- [Node] 지식 리트리빙(RAG) 시작 ---")
     
-    red = state.get("redness", 0)
-    oil = state.get("oiliness", 0)
+    # 💡 state.get("key", 0)에서 뒤의 0은 "값이 없으면 0으로 써라"는 뜻이야.
+    # 하지만 더 안전하게 한번 더 체크하자.
+    red = state.get("redness")
+    oil = state.get("oiliness")
+
+    # 만약 앞 노드에서 실수로 None을 보냈다면 0으로 강제 치환
+    if red is None: red = 0
+    if oil is None: oil = 0
     
-    # 1. 지수님 기준(40/70)에 맞춘 지능형 쿼리 생성
     search_queries = []
     
-    # 홍조/민감성 판단 (지수님 기준 40 적용)
+    # 이제 red가 무조건 숫자니까 '>' 비교에서 에러가 안 나!
     if red > 40:
         search_queries.append("민감성 홍조 피부 진정 성분 판테놀 병풀")
     
@@ -120,12 +212,17 @@ def retriever_node(state: GraphState):
     return {"skin_knowledge": knowledge}
 
 def database_node(state: GraphState):
-    print("--- [Node] DB 검색 시작 ---")
+    print("--- [Node] 가성비 및 알레르기 필터링 DB 검색 ---")
+    
     oil = state.get("oiliness", 0)
     red = state.get("redness", 0)
+    # 유저 프로필에서 알레르기 성분 가져오기 (리스트 형태라고 가정)
+    user_allergies = state.get("user_profile", {}).get("allergies", [])
     
-    recommended = get_recommended_products(oil, red)
-    return {"recommended_products": recommended}
+    # 수정된 DB 함수 호출
+    recommended_products = get_recommended_products(oil, red, user_allergies)
+    
+    return {"recommended_products": recommended_products}
 
 def interpreter_node(state: GraphState):
     print("--- [Node] 지수님 로직 가동: 분석 및 리포트 생성 ---")
@@ -143,49 +240,3 @@ def interpreter_node(state: GraphState):
         "analysis_result": analysis_json, 
         "final_report": final_report
     }
-
-# def generator_node(state: GraphState):
-#     print("--- [Node] 최종 지능형 리포트 생성 시작 ---")
-    
-#     llm = ChatOpenAI(model="gpt-4o", temperature=0.7) # 약간의 창의성을 위해 temp 조절
-    
-#     # 1. 재료 준비
-#     red = state.get("redness", 0)
-#     oil = state.get("oiliness", 0)
-#     knowledge = state.get("skin_knowledge", "기본적인 보습이 중요합니다.")
-#     products = state.get("recommended_products", [])
-#     user_allergy = state.get("user_allergy", [])
-
-#     # 2. 지능형 프롬프트 설계
-#     prompt = ChatPromptTemplate.from_template("""
-#     당신은 피부과 전문의이자 뷰티 큐레이터입니다. 
-#     아래 정보를 바탕으로 사용자에게 최적의 피부 리포트를 작성하세요.
-
-#     [분석 데이터]
-#     - 홍조 수치: {redness}/100
-#     - 유분 수치: {oiliness}/100
-#     - 전문 지식(RAG): {knowledge}
-#     - 사용자의 알레르기 성분: {user_allergy}
-
-#     [제품 추천 규칙]
-#     1. 만약 아래 'DB 제품 리스트'에 데이터가 있다면, 반드시 해당 제품의 이름과 링크를 우선적으로 안내하세요.
-#     2. 만약 'DB 제품 리스트'가 비어있다면, 당신이 알고 있는 지식을 활용해 해당 피부 타입에 가장 적합한 대중적인 제품 2~3개를 추천하고 특징을 설명하세요.
-#     3. 추천 시 사용자의 알레르기 성분이 포함되어 있는지 주의 깊게 살피고 경고하세요.
-
-#     [DB 제품 리스트]
-#     {products_json}
-
-#     마크다운 형식을 사용하여 전문적이고 친절하게 작성하세요.
-#     """)
-
-#     # 3. 체인 실행
-#     chain = prompt | llm
-#     response = chain.invoke({
-#         "redness": red,
-#         "oiliness": oil,
-#         "knowledge": knowledge,
-#         "user_allergy": user_allergy,
-#         "products_json": products if products else "현재 매칭되는 DB 제품이 없습니다. AI 지식으로 추천해주세요."
-#     })
-
-#     return {"final_report": response.content}

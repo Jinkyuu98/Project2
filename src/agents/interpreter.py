@@ -111,14 +111,19 @@ def generate_final_report(redness, oiliness, analysis_json, recommended_products
             name = p.get("name", "제품명")
             price = p.get("price", "0")
             p_url = p.get("detail_url") if p.get("detail_url") else f"https://search.shopping.naver.com/search/all?query={brand}+{name}"
-            
-            # 알레르기/안전성 체크
             safety_msg = check_product_safety(p.get("ingredients", ""), False)
-
-            report += f"**STEP {idx}. {category}**\n"
-            report += f"> **[{brand}] {name}**\n"
-            report += f"> - 💰 가격: {price}원 | ✨ 안전성: {safety_msg}\n"
-            report += f"> - [👉 제품 상세 정보 확인하기]({p_url})\n\n"
+            
+            report += f"""
+<div style="border-left: 5px solid #4A90E2; background-color: #f9f9f9; padding: 15px; margin-bottom: 20px; border-radius: 0 10px 10px 0;">
+    <span style="color: #4A90E2; font-weight: bold; font-size: 0.9em;">STEP {idx}. {category}</span><br>
+    <strong style="font-size: 1.1em; color: #333;">[{brand}] {name}</strong>
+    <ul style="margin-top: 10px; list-style-type: none; padding-left: 0; color: #555; font-size: 0.95em;">
+        <li>💰 <b>가격:</b> {price}원</li>
+        <li>✨ <b>안전성:</b> {safety_msg}</li>
+        <li>🔗 <a href="{p_url}" target="_blank" style="color: #4A90E2; text-decoration: none; font-weight: bold;">제품 상세 정보 확인하기</a></li>
+    </ul>
+</div>
+"""
 
     else:
         # DB에 제품이 없는 경우 (올리브영 자동 검색 링크 생성)

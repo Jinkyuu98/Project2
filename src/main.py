@@ -36,7 +36,7 @@ st.subheader("📸 피부 사진 분석")
 uploaded_file = st.file_uploader("피부 사진을 업로드하세요", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    st.image(uploaded_file, caption="업로드된 사진", use_container_width=True)
+    st.image(uploaded_file, caption="업로드된 사진", width='content')
     if st.button("에이전트에게 분석 요청하기"):
         with st.status("에이전트가 분석 중입니다...", expanded=True) as status:
             
