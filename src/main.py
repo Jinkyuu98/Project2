@@ -28,6 +28,10 @@ if "messages" not in st.session_state:
 # 4. 이미지 업로드 (채팅창 위에 배치)
 uploaded_file = st.file_uploader("먼저 피부 사진을 업로드하세요", type=["jpg", "jpeg", "png"])
 
+# 💡 [추가] 이미지 미리보기 기능 복원
+if uploaded_file is not None:
+    st.image(uploaded_file, caption="업로드된 피부 이미지", use_container_width=True)
+
 # 5. 기존 채팅 내용 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
