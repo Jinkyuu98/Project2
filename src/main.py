@@ -10,16 +10,13 @@ project_root = os.path.abspath(os.path.join(current_dir, "..")) # project2 루�
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# 💡 이제 파이썬이 src 폴더를 인식할 수 있어.
 from src.graph.workflow import build_workflow
 # 1. 페이지 설정
-st.set_page_config(page_title="SkinCare Chat", page_icon="🩺", layout="centered")
+st.set_page_config(page_title="SKIN STAR", page_icon="🩺", layout="centered")
 
 # 2. 제목
-st.title("🩺 AI 피부 진단 챗봇")
+st.title(" ⭐ SKIN STAR ⭐")
 st.markdown("사진을 올리고 고민을 채팅으로 말해주세요!")
-
-# --- [삭제] 사이드바 유저 프로필 섹션 전체 삭제 ---
 
 # 3. 세션 상태 초기화 (채팅 기록용)
 if "messages" not in st.session_state:
